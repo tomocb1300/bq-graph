@@ -1,10 +1,50 @@
 import matplotlib.pyplot as plt
 from google.cloud import bigquery
 
-JOB_ID = "ジョブID"
+# ==============================
+# 🔧 手動切り替え設定
+# ==============================
+USE_LATEST_JOB = True  # False にすると MANUAL_JOB_ID を使う
+MANUAL_JOB_ID = "bquxjob_xxxxxxxx_yyyyyyyyyyyy"
+MANUAL_LOCATION = "asia-northeast1"
+MANUAL_PROJECT = "your-project-id"  # 任意のプロジェクトID（必要時）
 
-bq = bigquery.Client(location="ロケーション")
-stages = bq.get_job(JOB_ID).query_plan
+# ==============================
+# BigQuery クライアント初期化
+# ==============================
+client = bigquery.Client()
+
+# ==============================
+# JOB_ID + location の取得
+# ==============================
+if USE_LATEST_JOB:
+    # 直近のクエリジョブを取得
+    latest_job = next(
+        client.list_jobs(
+            max_results=1,
+            state_filter="done",
+            all_users=False  # 自分のジョブのみ
+        )
+    )
+    JOB_ID = latest_job.job_id
+    LOCATION = latest_job.location
+    PROJECT = latest_job.project
+    print(f"[AUTO] Using latest job: {JOB_ID} ({LOCATION})")
+else:
+    JOB_ID = MANUAL_JOB_ID
+    LOCATION = MANUAL_LOCATION
+    PROJECT = MANUAL_PROJECT
+    print(f"[MANUAL] Using job: {JOB_ID} ({LOCATION})")
+
+# ==============================
+# 実行プラン取得
+# ==============================
+job = client.get_job(JOB_ID, location=LOCATION, project=PROJECT)
+stages = job.query_plan
+
+if not stages:
+    print("❌ このジョブには query_plan が含まれていません。クエリではない可能性があります。")
+    exit()
 
 # ジョブ情報を解析
 labels = {}
@@ -77,4 +117,7 @@ for dep_from, dep_to in dependency:
 ax.invert_yaxis()
 
 # 描画を表示
+
 plt.show()
+plt.tight_layout()
+plt.savefig("query_timeline.png", dpi=300)
